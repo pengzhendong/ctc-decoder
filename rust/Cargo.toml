@@ -11,6 +11,8 @@ name = "asr_decoder"
 path = "src/lib.rs"
 
 [dependencies]
+prost = "0.14"
+sentencepiece = { version = "0.14.0", features = ["static"] }
 
 [lints.rust]
 unsafe_code = "forbid"

@@ -3,12 +3,15 @@ use std::collections::HashSet;
 use crate::context_graph::ContextGraph;
 use crate::prefix_score::PrefixScore;
 use crate::{
-    ContextPolicy, DecoderError, DecodingQuality, HotwordStrength, LogProbabilities, Timestamp,
+    ContextPolicy, DecoderError, DecodingQuality, HotwordStrength, LogProbabilities,
+    SentencePieceTokenizer, Timestamp,
 };
 
 #[derive(Clone, Debug, Default)]
 pub struct DecoderConfig {
     pub context_token_ids: Vec<Vec<usize>>,
+    pub contexts: Vec<String>,
+    pub sentencepiece_tokenizer: Option<SentencePieceTokenizer>,
     pub context_policy: Option<ContextPolicy>,
     pub hotword_strength: Option<HotwordStrength>,
     pub decoding_quality: DecodingQuality,
@@ -77,7 +80,26 @@ pub struct CTCDecoder {
 }
 
 impl CTCDecoder {
-    pub fn new(config: DecoderConfig) -> Result<Self, DecoderError> {
+    pub fn new(mut config: DecoderConfig) -> Result<Self, DecoderError> {
+        if !config.contexts.is_empty() && !config.context_token_ids.is_empty() {
+            return Err(DecoderError::InvalidConfig(
+                "provide contexts or context_token_ids, not both",
+            ));
+        }
+        if !config.contexts.is_empty() {
+            let tokenizer =
+                config
+                    .sentencepiece_tokenizer
+                    .as_ref()
+                    .ok_or(DecoderError::InvalidConfig(
+                        "sentencepiece_tokenizer is required when contexts are provided",
+                    ))?;
+            let tokenization = tokenizer.tokenize(&config.contexts)?;
+            config.context_token_ids = tokenization.context_token_ids;
+            config
+                .word_boundary_token_ids
+                .extend(tokenization.word_boundary_token_ids);
+        }
         if config.context_policy.is_some() && config.hotword_strength.is_some() {
             return Err(DecoderError::InvalidConfig(
                 "provide context_policy or hotword_strength, not both",
